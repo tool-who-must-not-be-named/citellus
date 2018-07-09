@@ -23,6 +23,7 @@
 from __future__ import print_function
 
 import argparse
+import copy
 import datetime
 import gettext
 import hashlib
@@ -496,7 +497,7 @@ def getids(plugins=None, include=None, exclude=None):
     return ids
 
 
-def execonshell(filename):
+def execonshell(filename, timeout=30):
     """
     Executes command on shell
     :param filename: command to run or script name
@@ -504,7 +505,7 @@ def execonshell(filename):
     """
     try:
         p = subprocess.Popen(filename.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        timer = Timer(10, p.kill)
+        timer = Timer(timeout, p.kill)
         timer.start()
         out, err = p.communicate(str.encode('utf8'))
         returncode = p.returncode
@@ -613,7 +614,7 @@ def docitellus(live=False, path=False, plugins=False, lang='en_US', forcerun=Fal
     # We do need to check that we've the results for all the plugins we know, if not, rerun.
 
     # Check all sosreports for data for all plugins
-    allids = getids(plugins=plugins)
+    allids = getids()
 
     # Now check in results for id's no longer existing for removal:
     delete = []
@@ -716,8 +717,6 @@ def docitellus(live=False, path=False, plugins=False, lang='en_US', forcerun=Fal
 
     # Write results if possible
     if filename:
-        branding = _("                                                  ")
-        write_results(results, filename, path=path, time=time.time() - start_time, branding=branding, web=web, serveruri=serveruri, anon=anon)
         try:
             # Write results to disk
             branding = _("                                                  ")
@@ -1033,6 +1032,36 @@ def generic_get_metadata(plugin):
     return metadata
 
 
+def anonymize(data, keeppath=False):
+    """
+    Removes data from json that might identify
+    :param data: json with data from plugins
+    :param keeppath: do not remove path to sosreport
+    """
+    # Clearing path and extranames that might be revealing some data
+    if not keeppath:
+        data['metadata']['path'] = ''
+
+    data['metadata']['extranames'] = ''
+
+    if 'magui' not in data['metadata']['source']:
+        # Citellus.json
+        for plugin in data['results']:
+            # Citellus json
+            if 'result' in data['results'][plugin]:
+                data['results'][plugin]['result']['out'] = ''
+                data['results'][plugin]['result']['err'] = ''
+    else:
+        # Magui.json
+        for ourdata in data['results']:
+            if 'citellus-outputs' in ourdata['name']:
+                for element in ourdata['result']['err']:
+                    for sosreport in element['sosreport']:
+                        element['sosreport'][sosreport]['err'] = ''
+                        element['sosreport'][sosreport]['out'] = ''
+    return data
+
+
 def write_results(results, filename, live=False, path=None, time=0, source='citellus', branding='', web=False,
                   extranames=None, serveruri=False, anon=False):
     """
@@ -1079,25 +1108,7 @@ def write_results(results, filename, live=False, path=None, time=0, source='cite
 
     if anon:
         LOG.debug("Anonymizing results as request..")
-        # Clearing path and extranames that might be revealing some data
-        data['metadata']['path'] = ''
-        data['metadata']['extranames'] = ''
-
-        if 'magui' not in data['metadata']['source']:
-            # Citellus.json
-            for plugin in data['results']:
-                # Citellus json
-                if 'result' in results[plugin]:
-                    results[plugin]['result']['out'] = ''
-                    results[plugin]['result']['err'] = ''
-        else:
-            # Magui.json
-            for ourdata in data['results']:
-                if 'citellus-outputs' in ourdata['name']:
-                    for element in ourdata['result']['err']:
-                        for sosreport in element['sosreport']:
-                            element['sosreport'][sosreport]['err'] = ''
-                            element['sosreport'][sosreport]['out'] = ''
+        data = anonymize(data=data.copy())
 
     try:
         with open(filename, 'w') as fd:
@@ -1107,12 +1118,12 @@ def write_results(results, filename, live=False, path=None, time=0, source='cite
 
     # Code to upload file
     if serveruri and requests:
-        files = {'upload_file': open(filename, 'rb')}
-        values = {}
+        newdata = copy.deepcopy(data)
         try:
-            requests.post(serveruri, files=files, data=values)
+            requests.post(serveruri, json=anonymize(data=newdata, keeppath=True))
         except:
             LOG.debug("Upload to serveruri failed")
+        del newdata
 
 
 def regexpfile(filename=False, regexp=False):

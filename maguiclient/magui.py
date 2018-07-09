@@ -436,8 +436,8 @@ def main():
 
             command = "%s -i %s %s" % (ansible, options.hosts, os.path.join(maguidir, 'remote.yml'))
 
-            LOG.debug("Running: %s " % command)
-            citellus.execonshell(filename=command)
+            LOG.debug("Running: %s with 600 seconds timeout" % command)
+            citellus.execonshell(filename=command, timeout=600)
 
             # Now check the hosts we got logs from:
             hosts = citellus.findplugins(folders=glob.glob('/tmp/citellus/hostrun/*'), executables=False, fileextension='.json')
@@ -451,7 +451,7 @@ def main():
         dooutput = False
 
     if len(sosreports) > options.max_hosts:
-        print("Maximum number of sosreports provided, exitting")
+        print("Maximum number of sosreports provided, exiting")
         sys.exit(0)
 
     citellusplugins = []

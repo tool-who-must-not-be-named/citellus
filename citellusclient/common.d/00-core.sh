@@ -40,7 +40,7 @@ if [ "x$CITELLUS_LIVE" = "x0" ];  then
     done
 else
     journalctl_file="${CITELLUS_TMP}/journalctl_--no-pager_--boot"
-    if ! -f ${journalctl_file}; then
+    if [[ ! -f ${journalctl_file} ]]; then
         if which journalctl >/dev/null 2>&1; then
             journalctl --no-pager --boot > ${journalctl_file}
         else
@@ -113,9 +113,9 @@ is_required_command(){
 is_enabled(){
     if [ "x$CITELLUS_LIVE" = "x1" ]; then
         if [ ! -z "$(which systemctl 2>/dev/null)" ]; then
-            systemctl is-enabled "$1" > /dev/null 2>&1
+            systemctl list-unit-files | grep enabled|grep -q "$1.* enabled" > /dev/null 2>&1
         elif [ ! -z "$(which chkconfig 2>/dev/null)" ]; then
-            chkconfig --list "$1" | grep -q '3:on'
+            chkconfig --list | grep -q "$1.*3:on"
         else
             echo "could not check for enabled service $1 during live execution" >&2
             exit ${RC_SKIPPED}

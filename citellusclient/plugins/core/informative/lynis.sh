@@ -2,7 +2,6 @@
 
 # Copyright (C) 2018 Pablo Iranzo Gómez <Pablo.Iranzo@gmail.com>
 
-# Code based on the regexps from sumsos from John Devereux (john_devereux@yahoo.com)
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,26 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# we can run this against fs snapshot or live system
-
-# long_name: Finds matches of kernel: qla2xxx .*-5816:.*: Discard RND Frame -- .*
-# description: Finds matches of error kernel: qla2xxx .*-5816:.*: Discard RND Frame -- .*
-
-REGEXP="kernel: qla2xxx .*-5816:.*: Discard RND Frame -- .*"
-KCS=54682
-
-
-# priority: 500
+# long_name: Provides output of lynis https://github.com/CISOfy/Lynis
+# description: Reports lynis output https://github.com/CISOfy/Lynis
+# priority: 100
 
 # Load common functions
 [[ -f "${CITELLUS_BASE}/common-functions.sh" ]] && . "${CITELLUS_BASE}/common-functions.sh"
 
-journal="$journalctl_file"
-
-if is_lineinfile "${REGEXP}" ${journal} ${CITELLUS_ROOT}/var/log/messages ; then
-    echo $"Check Kbase: https://access.redhat.com/solutions/$KCS for more details about error: $REGEXP found in logs" >&2
-    exit ${RC_FAILED}
-else
-    exit ${RC_OKAY}
+if ! which lynis >/dev/null 2>&1; then
+    echo "lynis (https://github.com/CISOfy/Lynis) support not found, exiting" >&2
+    exit ${RC_SKIPPED}
 fi
 
+if [[ "x$CITELLUS_LIVE" = "x0" ]];  then
+    echo $"Lynis is not supported for non-live operations" >&2
+    exit ${RC_SKIPPED}
+elif [[ "x$CITELLUS_LIVE" = "x1" ]];  then
+    lynis audit system >&2
+    exit ${RC_INFO}
+fi
+exit ${RC_OKAY}
